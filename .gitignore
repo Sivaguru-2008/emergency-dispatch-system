@@ -1,0 +1,9 @@
+out/
+*.class
+
+# Claude Code local settings
+.claude/
+
+# OS / editor cruft
+Thumbs.db
+.DS_Store

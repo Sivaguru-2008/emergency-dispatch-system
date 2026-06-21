@@ -1,0 +1,20 @@
+# Emergency resources for the sample 30km x 30km city.
+# Columns: id,name,type,x,y,available,icuBeds
+# type = AMBULANCE | FIRE_TRUCK | POLICE_UNIT | HOSPITAL
+# available is used by mobile units; icuBeds is used by hospitals.
+A1,Ambulance-1,AMBULANCE,3,4,true,0
+A2,Ambulance-2,AMBULANCE,6,12,true,0
+A3,Ambulance-3,AMBULANCE,10,22,true,0
+A4,Ambulance-4,AMBULANCE,13,27,true,0
+A5,Ambulance-5,AMBULANCE,22,25,true,0
+A6,Ambulance-6,AMBULANCE,27,20,true,0
+A7,Ambulance-7,AMBULANCE,20,6,true,0
+A8,Ambulance-8,AMBULANCE,26,9,true,0
+F1,Fire-Engine-1,FIRE_TRUCK,5,8,true,0
+F2,Fire-Engine-2,FIRE_TRUCK,24,22,true,0
+P1,Patrol-1,POLICE_UNIT,8,18,true,0
+P2,Patrol-2,POLICE_UNIT,23,11,true,0
+H1,City-General,HOSPITAL,4,10,true,6
+H2,Northside-Med,HOSPITAL,12,25,true,3
+H3,East-Care,HOSPITAL,25,18,true,0
+H4,Metro-Trauma,HOSPITAL,21,7,true,4

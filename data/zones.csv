@@ -1,0 +1,6 @@
+# Response zones (city sectors) for point location.
+# Columns: name,minX,minY,maxX,maxY
+North-West,0,15,15,30
+North-East,15,15,30,30
+South-West,0,0,15,15
+South-East,15,0,30,15
