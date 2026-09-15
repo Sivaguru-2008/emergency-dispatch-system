@@ -1,6 +1,3 @@
-out/
-*.class
-
 # Claude Code local settings
 .claude/
 
