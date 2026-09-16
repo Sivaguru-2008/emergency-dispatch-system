@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emergency Dispatch Control Center | Project 29</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header>
+    <div class="brand">
+      <div class="logo-badge">🚨</div>
+      <div class="title-group">
+        <h1>Emergency Dispatch System <span style="font-size: 0.75rem; color: #06b6d4; font-weight: 500;">CAD-911</span></h1>
+        <p>Intelligent Spatial Resource Allocation &amp; Point Location</p>
+      </div>
+    </div>
+
+    <div class="header-badges">
+      <span class="tag cyan">2D Range Tree</span>
+      <span class="tag cyan">Fractional Cascading O(log n + k)</span>
+      <span class="tag cyan">Slab Point Location O(log n)</span>
+    </div>
+
+    <div class="header-actions">
+      <div class="status-pill">
+        <span class="pulse-dot"></span>
+        <span id="systemStatusText">ONLINE · 16 UNITS</span>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="btnScenarios" title="Select preconfigured demo scenario">⚡ Scenarios</button>
+      <button class="btn btn-outline btn-sm" id="btnTheory" title="View DSA Theory & Complexity Guide">📖 DSA Theory</button>
+      <button class="btn btn-secondary btn-sm" id="btnResetCity" title="Reset all units and beds to initial state">🔄 Reset City</button>
+    </div>
+  </header>
+
+  <!-- App Main Layout -->
+  <main class="app-layout">
+    
+    <!-- Left Column: Interactive 30km x 30km City Grid -->
+    <section class="map-container">
+      <div class="map-header">
+        <div class="map-title">
+          <span>🗺️ City Tactical Grid (30 × 30 km)</span>
+        </div>
+        <div class="map-controls-bar">
+          <span style="color: var(--text-secondary); font-size: 0.76rem;">Click Mode:</span>
+          <div class="mode-selector">
+            <button class="mode-btn active" data-mode="dispatch">🚨 Incident</button>
+            <button class="mode-btn" data-mode="nearest">📍 Nearest</button>
+            <button class="mode-btn" data-mode="radius">⭕ ICU Radius</button>
+            <button class="mode-btn" data-mode="range">📐 Range Box</button>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="btnClearOverlays" style="padding: 4px 8px; font-size: 0.72rem;">Clear Overlays</button>
+        </div>
+      </div>
+
+      <div class="canvas-wrapper" id="canvasWrapper">
+        <canvas id="cityCanvas"></canvas>
+      </div>
+
+      <div class="map-footer">
+        <div class="coord-display">
+          <span>Grid: [0..30] km</span>
+          <span>Cursor: <span class="coord-val" id="cursorCoords">-- , --</span> km</span>
+          <span>Sector: <span class="sector-tag" id="cursorSector">Hovering</span></span>
+        </div>
+        <div class="map-legend">
+          <div class="legend-item"><span class="legend-color legend-ambulance"></span> Amb (Free)</div>
+          <div class="legend-item"><span class="legend-color legend-busy"></span> Busy</div>
+          <div class="legend-item"><span class="legend-color legend-fire"></span> Fire</div>
+          <div class="legend-item"><span class="legend-color legend-police"></span> Police</div>
+          <div class="legend-item"><span class="legend-color legend-hospital"></span> Hospital (ICU)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Operational Control Deck -->
+    <aside class="control-deck">
+      <nav class="deck-tabs">
+        <button class="deck-tab active" data-tab="dispatch">🚨 Dispatch</button>
+        <button class="deck-tab" data-tab="nearest">📍 Nearest Amb</button>
+        <button class="deck-tab" data-tab="range">📐 Region Search</button>
+        <button class="deck-tab" data-tab="radius">🏥 ICU Radius</button>
+        <button class="deck-tab" data-tab="coverage">⚖️ Rebalance</button>
+        <button class="deck-tab" data-tab="roster">📋 Roster</button>
+      </nav>
+
+      <div class="deck-content">
+        
+        <!-- Tab 1: Dispatch Incident (Query 4 & Point Location) -->
+        <div class="tab-pane active" id="pane-dispatch">
+          <form id="formDispatch">
+            <div class="form-group">
+              <label class="form-label">Incident Location (km) — Click map to auto-fill</label>
+              <div class="input-row">
+                <input type="number" id="dispX" class="input-field" placeholder="X (0-30)" step="0.5" min="0" max="30" value="19.0" required>
+                <input type="number" id="dispY" class="input-field" placeholder="Y (0-30)" step="0.5" min="0" max="30" value="24.0" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Emergency Nature / Type</label>
+              <select id="dispType" class="input-field">
+                <option value="ROAD_ACCIDENT">🚗 Road Accident (Fire + Police + Amb)</option>
+                <option value="CARDIAC_ARREST">❤️ Cardiac Arrest (Ambulance + ICU)</option>
+                <option value="FIRE">🔥 Fire Outbreak (Fire Engine + Police)</option>
+                <option value="NATURAL_DISASTER">🌪️ Natural Disaster (All Support Units)</option>
+                <option value="MEDICAL">🩹 Medical Emergency (Ambulance)</option>
+                <option value="CRIME">🛡️ Violent Crime / Hazard (Police Unit)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Severity Level (Policy Allocation)</label>
+              <div class="severity-picker">
+                <div class="sev-btn active critical" data-sev="CRITICAL">
+                  <div>CRITICAL</div>
+                  <div style="font-size:0.68rem;">2 Amb + ICU</div>
+                </div>
+                <div class="sev-btn high" data-sev="HIGH">
+                  <div>HIGH</div>
+                  <div style="font-size:0.68rem;">1 Amb + ICU</div>
+                </div>
+                <div class="sev-btn moderate" data-sev="MODERATE">
+                  <div>MODERATE</div>
+                  <div style="font-size:0.68rem;">1 Amb</div>
+                </div>
+                <div class="sev-btn low" data-sev="LOW">
+                  <div>LOW</div>
+                  <div style="font-size:0.68rem;">1 Amb</div>
+                </div>
+              </div>
+              <input type="hidden" id="dispSeverity" value="CRITICAL">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-full" id="btnDispatchCall">
+              🚨 Dispatch Emergency Units
+            </button>
+          </form>
+
+          <!-- Dispatch Result Display -->
+          <div class="result-box" id="dispatchResult" style="display: none;">
+            <div class="result-box-header">
+              <span class="result-title">⚡ Dispatched Allocation Plan</span>
+              <span class="sector-tag" id="resZone">North-East</span>
+            </div>
+            <div class="result-item">
+              <span class="result-label">Point Location Sector:</span>
+              <span class="result-value" id="resZoneVal">North-East</span>
+            </div>
+            <div id="allocatedUnitsList"></div>
+            <div id="unmetAlerts" style="margin-top: 8px;"></div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Nearest Ambulance (Query 2) -->
+        <div class="tab-pane" id="pane-nearest">
+          <form id="formNearest">
+            <div class="form-group">
+              <label class="form-label">Query Coordinates (km) — Click map to pick</label>
+              <div class="input-row">
+                <input type="number" id="nearX" class="input-field" placeholder="X (0-30)" step="0.5" min="0" max="30" value="18.0" required>
+                <input type="number" id="nearY" class="input-field" placeholder="Y (0-30)" step="0.5" min="0" max="30" value="23.0" required>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 12px; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4;">
+              Uses range-tree expanding geometric window with fractional cascading to find the nearest available ambulance without scanning every unit.
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-full">
+              📍 Find Nearest Ambulance
+            </button>
+          </form>
+
+          <div class="result-box" id="nearestResult" style="display: none;">
+            <div class="result-box-header">
+              <span class="result-title">Nearest Available Unit</span>
+            </div>
+            <div class="result-item">
+              <span class="result-label">Unit ID &amp; Name:</span>
+              <span class="result-value" id="nearResName">A5 (Ambulance-5)</span>
+            </div>
+            <div class="result-item">
+              <span class="result-label">Position:</span>
+              <span class="result-value" id="nearResPos">(22.0, 25.0)</span>
+            </div>
+            <div class="result-item">
+              <span class="result-label">Straight-Line Distance:</span>
+              <span class="result-value" style="color: #38bdf8;" id="nearResDist">4.47 km</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Region Range Search (Query 1) -->
+        <div class="tab-pane" id="pane-range">
+          <form id="formRange">
+            <div class="form-group">
+              <label class="form-label">Sector Quick-Presets</label>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="app.setRangePreset(0, 15, 15, 30)">North-West</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="app.setRangePreset(15, 15, 30, 30)">North-East</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="app.setRangePreset(0, 0, 15, 15)">South-West</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="app.setRangePreset(15, 0, 30, 15)">South-East</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Orthogonal Query Window [minX..maxX] × [minY..maxY]</label>
+              <div class="input-row">
+                <input type="number" id="rangeMinX" class="input-field" placeholder="minX" step="0.5" value="0.0" required>
+                <input type="number" id="rangeMinY" class="input-field" placeholder="minY" step="0.5" value="0.0" required>
+              </div>
+              <div class="input-row" style="margin-top: 8px;">
+                <input type="number" id="rangeMaxX" class="input-field" placeholder="maxX" step="0.5" value="15.0" required>
+                <input type="number" id="rangeMaxY" class="input-field" placeholder="maxY" step="0.5" value="15.0" required>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 12px; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.4;">
+              Query bound: <code>O(log n + k)</code> with Fractional Cascading (one root binary search + constant-time downward cascade).
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-full">
+              📐 Search Available Ambulances
+            </button>
+          </form>
+
+          <div class="result-box" id="rangeResult" style="display: none;">
+            <div class="result-box-header">
+              <span class="result-title">Units in Region (<span id="rangeCount">0</span>)</span>
+            </div>
+            <div id="rangeList" style="max-height: 200px; overflow-y: auto;"></div>
+          </div>
+        </div>
+
+        <!-- Tab 4: ICU Hospitals in Radius (Query 3) -->
+        <div class="tab-pane" id="pane-radius">
+          <form id="formRadius">
+            <div class="form-group">
+              <label class="form-label">Center Point (km) — Click map to pick</label>
+              <div class="input-row">
+                <input type="number" id="radX" class="input-field" placeholder="X (0-30)" step="0.5" min="0" max="30" value="7.0" required>
+                <input type="number" id="radY" class="input-field" placeholder="Y (0-30)" step="0.5" min="0" max="30" value="11.0" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Search Radius (km)</label>
+              <div class="range-slider-wrapper">
+                <input type="range" id="radiusKm" class="range-slider" min="1" max="15" step="0.5" value="5.0">
+                <span class="slider-value" id="radiusKmVal">5.0 km</span>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-full">
+              🏥 Search ICU Hospitals in Radius
+            </button>
+          </form>
+
+          <div class="result-box" id="radiusResult" style="display: none;">
+            <div class="result-box-header">
+              <span class="result-title">Hospitals with ICU (<span id="radiusCount">0</span>)</span>
+            </div>
+            <div id="radiusList" style="max-height: 200px; overflow-y: auto;"></div>
+          </div>
+        </div>
+
+        <!-- Tab 5: Coverage & Dynamic Redistribution (Query 5 & 6) -->
+        <div class="tab-pane" id="pane-coverage">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label class="form-label" style="margin-bottom:0;">Live Sector Coverage Map</label>
+            <button class="btn btn-outline btn-sm" id="btnRefreshCoverage" style="padding: 3px 8px; font-size: 0.7rem;">Refresh</button>
+          </div>
+
+          <table class="coverage-table">
+            <thead>
+              <tr>
+                <th>Zone</th>
+                <th>Amb.</th>
+                <th>ICU &lt;8km</th>
+                <th>Resp (Ctr)</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="coverageTableBody">
+              <!-- Loaded via API -->
+            </tbody>
+          </table>
+
+          <div style="margin-top: 16px;">
+            <label class="form-label">Dynamic Redistribution (Query 5)</label>
+            <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 10px;">
+              Detects sectors with 0 available ambulances, identifies nearest donor with surplus from another sector, physically relocates it to sector center, and rebuilds the 2D Range Tree with fractional cascading.
+            </p>
+            <button class="btn btn-danger btn-full" id="btnRedistribute">
+              ⚖️ Rebalance Coverage Now
+            </button>
+          </div>
+
+          <div class="result-box" id="redistributeResult" style="display: none; margin-top: 12px;">
+            <div class="result-box-header">
+              <span class="result-title">Relocation Actions</span>
+            </div>
+            <div id="redistributeMoves" style="font-family: var(--font-mono); font-size: 0.75rem;"></div>
+          </div>
+        </div>
+
+        <!-- Tab 6: Resource Roster & Return to Service -->
+        <div class="tab-pane" id="pane-roster">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <label class="form-label" style="margin-bottom:0;">All Resources (16 Units)</label>
+            <button class="btn btn-secondary btn-sm" id="btnReturnAll" style="font-size: 0.72rem;">Return All Free</button>
+          </div>
+
+          <div id="rosterList" style="display: flex; flex-direction: column; gap: 6px; max-height: 480px; overflow-y: auto;">
+            <!-- Rendered by app.js -->
+          </div>
+        </div>
+
+      </div>
+    </aside>
+  </main>
+
+  <!-- Bottom: Activity & Audit Log -->
+  <section class="log-card">
+    <div class="log-header" id="logToggle">
+      <div class="log-title">
+        <span>📋 System Audit &amp; Dispatch Trail</span>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-secondary btn-sm" id="btnClearLog" style="padding: 2px 8px; font-size: 0.7rem;">Clear Log</button>
+      </div>
+    </div>
+    <div class="log-body" id="logContainer">
+      <div class="log-entry">
+        <span class="log-time">[00:00:00]</span>
+        <span class="log-msg highlight">System initialized: 30 × 30 km city, 4 sectors, 16 units indexed.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Modal: DSA Theory & Viva Walkthrough -->
+  <div class="modal-overlay" id="theoryModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>📖 DSA Architecture &amp; Viva Reference Guide</h2>
+        <button class="modal-close" id="modalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <h3>1. 2D Orthogonal Range Tree + Fractional Cascading</h3>
+        <p>
+          A 2D Range Tree decomposes planar points on the primary x-axis into a balanced BST. Every internal node keeps an associated array of its subtree points sorted by y-coordinate.
+        </p>
+        <p>
+          <strong>Why Fractional Cascading?</strong> Standard 2D range trees require a separate binary search at each of the <code>O(log n)</code> canonical nodes, yielding <code>O(log² n + k)</code> query time. 
+          Fractional cascading stores cross-pointers from each parent y-entry into both children's y-arrays. We perform exactly <strong>one binary search</strong> at the root node, and follow pointers in <code>O(1)</code> time down each canonical node, cutting query time to the optimal <code>O(log n + k)</code>.
+        </p>
+
+        <table class="complexity-table">
+          <thead>
+            <tr>
+              <th>Operation</th>
+              <th>Naive Scan</th>
+              <th>Plain Range Tree</th>
+              <th>Range Tree + Fractional Cascading</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Build Time</td>
+              <td><code>O(1)</code></td>
+              <td><code>O(n log n)</code></td>
+              <td><code>O(n log n)</code></td>
+            </tr>
+            <tr>
+              <td>Orthogonal Range Search</td>
+              <td><code>O(n)</code></td>
+              <td><code>O(log² n + k)</code></td>
+              <td><code>O(log n + k)</code></td>
+            </tr>
+            <tr>
+              <td>Point Location (Sector)</td>
+              <td><code>O(n)</code></td>
+              <td><code>O(n)</code></td>
+              <td><code>O(log n)</code> (Slab method)</td>
+            </tr>
+            <tr>
+              <td>Nearest Unit (Window)</td>
+              <td><code>O(n)</code></td>
+              <td><code>O(log² n)</code></td>
+              <td><code>O(log n)</code> per expansion</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>2. Slab-Decomposition Point Location</h3>
+        <p>
+          Vertical lines passing through zone boundaries divide the plane into vertical slabs. A binary search on x finds the enclosing slab in <code>O(log n)</code> time, followed by binary search on y within the slab. This instantly resolves any incident coordinates to its jurisdiction sector.
+        </p>
+
+        <h3>3. Dynamic Redistribution Mechanism</h3>
+        <p>
+          When repeated emergencies leave a sector with 0 ambulances, the system locates a donor ambulance from a sector having surplus (&gt;1 available), relocates it to the needy zone's centroid, and rebuilds the 2D Range Tree with updated spatial coordinates in <code>O(n log n)</code> time.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Demo Scenarios -->
+  <div class="modal-overlay" id="scenariosModal">
+    <div class="modal-content" style="max-width: 580px;">
+      <div class="modal-header">
+        <h2>⚡ Quick Demo Scenarios for Viva &amp; Testing</h2>
+        <button class="modal-close" id="scenariosClose">&times;</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px;">
+        <button class="btn btn-secondary" style="text-align: left; display: block; padding: 12px;" onclick="app.runScenario(1)">
+          <div style="font-weight: 700; color: #fb7185;">Scenario 1: Critical Highway Pileup (North-East)</div>
+          <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px;">
+            Dispatches 2 Ambulances (A5, A4) + ICU Hospital reservation (H2) + Fire Engine (F2) + Police Unit (P1).
+          </div>
+        </button>
+
+        <button class="btn btn-secondary" style="text-align: left; display: block; padding: 12px;" onclick="app.runScenario(2)">
+          <div style="font-weight: 700; color: #fbbf24;">Scenario 2: Double Incident in South-East &rarr; Coverage Depletion</div>
+          <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px;">
+            Consumes A7 and A8, leaving South-East UNDER-COVERED (0 available). Demonstrates dynamic redistribution pulling donor A6.
+          </div>
+        </button>
+
+        <button class="btn btn-secondary" style="text-align: left; display: block; padding: 12px;" onclick="app.runScenario(3)">
+          <div style="font-weight: 700; color: #38bdf8;">Scenario 3: Factory Chemical Fire (South-West)</div>
+          <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px;">
+            Allocates Ambulance A1, Fire Engine F1, Police Patrol P2, and reserves City-General Hospital ICU beds.
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

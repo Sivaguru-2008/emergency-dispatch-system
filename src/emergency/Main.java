@@ -19,6 +19,7 @@ import java.util.Scanner;
  *
  * <pre>
  *   java emergency.Main          scripted demonstration of every query
+ *   java emergency.Main web      interactive web frontend (Emergency Control Center)
  *   java emergency.Main test     randomised + behavioural correctness suite
  *   java emergency.Main menu     interactive console
  * </pre>
@@ -34,6 +35,12 @@ public final class Main {
             new Verification().run();
         } else if (mode.equals("menu")) {
             interactive(SampleCity.load());
+        } else if (mode.equals("web") || mode.equals("gui") || mode.equals("server")) {
+            int port = 8080;
+            if (args.length > 1) {
+                try { port = Integer.parseInt(args[1]); } catch (NumberFormatException ignored) { }
+            }
+            emergency.web.WebServer.start(port, true);
         } else {
             demo();
         }

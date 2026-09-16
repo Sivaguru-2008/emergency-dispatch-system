@@ -2,6 +2,7 @@
 REM ---------------------------------------------------------------------------
 REM  Build and run the Emergency Dispatch System (Windows).
 REM    run.bat          -> scripted demo + self-test
+REM    run.bat web      -> interactive web frontend (opens browser)
 REM    run.bat test     -> only the correctness self-test
 REM    run.bat menu     -> interactive console
 REM ---------------------------------------------------------------------------
@@ -28,6 +29,7 @@ if not exist out mkdir out
     src\emergency\structures\*.java ^
     src\emergency\model\*.java ^
     src\emergency\system\*.java ^
+    src\emergency\web\*.java ^
     src\emergency\test\*.java
 if errorlevel 1 (
     echo [ERROR] Compilation failed.

@@ -73,6 +73,8 @@ installed on this machine; the scripts locate it automatically.
 
 **Windows**
 ```
+run-web.bat        REM 1-click launch: builds, starts server, opens browser
+run.bat web        REM start interactive web frontend (port 8080)
 run.bat            REM scripted demo of all six queries
 run.bat test       REM correctness suite (vs brute force)
 run.bat menu       REM interactive console
@@ -80,6 +82,7 @@ run.bat menu       REM interactive console
 
 **Linux / macOS / Git Bash**
 ```
+./run.sh web       # start interactive web frontend (port 8080)
 ./run.sh           # demo
 ./run.sh test      # correctness suite
 ./run.sh menu      # interactive console
